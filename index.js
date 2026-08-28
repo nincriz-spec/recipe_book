@@ -3,6 +3,27 @@ require('dotenv').config();
 const cors = require('cors'); 
 const { connect } = require('./db')
 const { ObjectId } = require('mongodb');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken')
+
+function generateAccessToken(id) {
+    return jwt.sign({
+        user_id: id,
+        role: "admin"
+        }, process.env.TOKEN_SECRET, {
+            expiresIn: '1h'
+    })
+}
+
+function generateRefrshToken(id) {
+    return jwt.sign({
+        user_id: id,
+        }, process.env.TOKEN_SECRET, {
+            expiresIn: '5h'
+    })
+
+}
+
 
 
 const app = express();
@@ -163,7 +184,7 @@ async function main(){
         const newCourse = {
             name,
             description,
-            recipes: recipes || []
+            recipes: recipes 
         };
 
         const result = await db.collection('courses').insertOne(newCourse);
@@ -180,7 +201,7 @@ async function main(){
         });
     }
 });
-  app.put('/api/courses/:id', async function (req, res) {
+    app.put('/api/courses/:id', async function (req, res) {
     try {
         const { recipe } = req.body; 
 
@@ -221,7 +242,7 @@ async function main(){
             });
         }
 
-        await db.collection('courses').updateOne(
+        await db.collection('courses').deleteOne(
             { _id: new ObjectId(req.params.id) },
             {
                 $pull: { //pull something out of the array
@@ -240,8 +261,99 @@ async function main(){
             'error': 'Unable to remove recipe from course'
         });
     }
-});
 
+    app.post('/users', async function(req, res){
+        
+
+    })
+
+
+
+
+});
+   app.post('/users', async function (req, res) {
+    const password = await bcrypt.hash(req.body.password, 12);
+    const email = req.body.email;
+
+    const existingUser = await db.collection('users').findOne({ 
+        email: email
+        });
+        if (existingUser) {
+            return res.status(400).json({
+                'error': 'Email is already in use'
+                 });
+                }
+
+
+    const result = await db.collection('users').insertOne({
+        email, password
+          });
+        res.status(201).json({
+            'message': 'New user has been created',
+            result
+        })
+    });
+
+    app.post('/login', async function (req, res) {
+        const { email, password } = req.body;
+        if (!email || !password) {
+            return res.status(400).json({
+                message: "Email and password are required"
+            })
+        }
+
+        const user = await db.collection("users").findOne({
+            email
+        });
+        if (user) {
+            const isPasswordValid = await bcrypt.compare(password, user.password);
+            if (!isPasswordValid) {
+                return res.status(401).json({
+                    error: "Access Denied"
+                })
+            }
+            const accessToken = generateAccessToken(user._id);
+            const refreshToken = generateRefreshToken(user._id);
+            res.json({
+                accessToken,
+                refreshToken
+            })
+
+        } else {
+            return res.status(401).json({
+                error: "Access Denied"
+            })
+        }
+
+    })
+
+    app.post('/refresh', async function (req, res) { 
+        const { refreshToken } = req.body;
+
+        if (!refreshToken) {
+            return res.status(401).json({
+                error: "Refresh token is required"
+                });
+        }
+
+        try {
+
+            const payload = jwt.verify(
+                refreshToken,
+                process.env.TOKEN_SECRET
+                );
+                
+            const accessToken = generateAccessToken(payload.user_id);
+            res.json({
+            })
+            
+         } catch (e) {
+            return res.status(403).json({
+                error: "Invalid or expired refresh token"
+            });
+        }
+    })
+    
 }
 main();
 
