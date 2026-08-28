@@ -9,22 +9,20 @@ const jwt = require('jsonwebtoken')
 function generateAccessToken(id) {
     return jwt.sign({
         user_id: id,
-        role: "admin"
+        role: "member"
         }, process.env.TOKEN_SECRET, {
             expiresIn: '1h'
     })
 }
 
-function generateRefrshToken(id) {
+function generateRefreshToken(id) {
     return jwt.sign({
         user_id: id,
         }, process.env.TOKEN_SECRET, {
-            expiresIn: '5h'
+            expiresIn: '5D'
     })
 
 }
-
-
 
 const app = express();
 
@@ -211,7 +209,6 @@ async function main(){
             });
         }
 
-
         const result = await db.collection('courses').updateOne(
             { _id: new ObjectId(req.params.id) },
             {
@@ -252,23 +249,15 @@ async function main(){
         );
 
         res.json({
-            'message': 'Recipe removed from course'
+            'message': 'Recipe removed from the course'
         });
 
     } catch (e) {
         console.error(e);
         res.status(500).json({
-            'error': 'Unable to remove recipe from course'
+            'error': 'Unable to remove recipe from the course'
         });
     }
-
-    app.post('/users', async function(req, res){
-        
-
-    })
-
-
-
 
 });
    app.post('/users', async function (req, res) {
@@ -276,14 +265,13 @@ async function main(){
     const email = req.body.email;
 
     const existingUser = await db.collection('users').findOne({ 
-        email: email
+        email,
         });
         if (existingUser) {
             return res.status(400).json({
                 'error': 'Email is already in use'
                  });
                 }
-
 
     const result = await db.collection('users').insertOne({
         email, password
@@ -298,7 +286,7 @@ async function main(){
         const { email, password } = req.body;
         if (!email || !password) {
             return res.status(400).json({
-                message: "Email and password are required"
+                message: "Enter email and password"
             })
         }
 
@@ -332,7 +320,7 @@ async function main(){
 
         if (!refreshToken) {
             return res.status(401).json({
-                error: "Refresh token is required"
+                error: "Enter Refresh Token"
                 });
         }
 
@@ -345,16 +333,17 @@ async function main(){
                 
             const accessToken = generateAccessToken(payload.user_id);
             res.json({
+                accessToken
             })
             
          } catch (e) {
             return res.status(403).json({
-                error: "Invalid or expired refresh token"
+                error: "Refresh token expired"
             });
         }
     })
-    
-}
+
+    }
 main();
 
 
